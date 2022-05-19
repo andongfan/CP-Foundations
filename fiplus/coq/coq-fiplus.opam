@@ -1,0 +1,22 @@
+opam-version: "2.0"
+maintainer: "me@andongfan.com"
+version: "dev"
+synopsis: "A call-by-name variant of Fi+ with TDOS"
+
+homepage: "https://github.com/hkuplg/fiplus"
+dev-repo: "git+https://github.com/hkuplg/fiplus.git"
+bug-reports: "https://github.com/hkuplg/fiplus/issues"
+
+build: [
+  ["coq_makefile" "-arg" "-w none" "-f" "_CoqProject" "-o" "CoqMakefile"]
+  [make "-f" "CoqMakefile" "-j%{jobs}%"]
+]
+install: [
+  [make "-f" "CoqMakefile" "install"]
+]
+depends: [
+  "coq" {>= "8.15"}
+  "coq-metalib"
+]
+
+authors: "HKU Programming Languages Group"

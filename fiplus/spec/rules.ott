@@ -1,0 +1,1347 @@
+% |---------------------------+---------------------------------------------------|
+% | defns                     | defn                                              |
+% |---------------------------+---------------------------------------------------|
+% | TypeWellformedness        | D |- A ::   :: TWell :: 'TW_'                     |
+% | TermContextWellformedness | D |- G ::   :: CWell :: 'CW_'                     |
+% | TypeContextWellformedness | |- D ::   :: TCWell :: 'TCW_'                     |
+% | BotLikeType               | botLike A :: :: botLike :: BL_                    |
+% | TopLikeType               | D  |- topLike A :: :: topLike :: TL_              |
+% | OrdinaryType              | ordinary A :: :: ord :: O_                        |
+% | SplitType                 | split A B C :: :: spl :: Sp_                      |
+% | DeclarativeSubtyping      | D |- A < B  :: :: sub :: DS_                      |
+% | AlgorithmicSubtyping      | D |- A <: B  :: :: algo_sub :: S_                 |
+% | ModularSubtyping          | D |- A <:: B  :: :: msub :: MS_                   |
+% | DisjointnessAxiom         | A *ax B :: :: disjoint_axiom    :: 'Dax_'         |
+% | TypeDisjointness          | D |- A * B :: :: disjoint    :: 'D_'              |
+% | IsomorphicSubtyping       | D |- A <<: B  :: :: subsub :: IS_                 |
+% | ApplicativeDistributivity | A > B  :: :: appDist :: AD_                       |
+% | Values                    | value e ::  :: value :: V_                        |
+% | ExpressionWrapping        | v |-> A  v'  :: :: wrapping :: EW_                |
+% | Casting                   | v --> A  v'  :: :: casting :: Cast_               |
+% | ParallelApplication       | v ; arg --> e :: :: papp :: PApp_                 |
+% | Reduction                 | e -->  e'  :: :: step :: Step_                    |
+% | PreValues                 | pval u ::  :: prevalue :: PV_                     |
+% | PrincipalType             | pType u A ::  :: pType :: PT_                     |
+% | Consistent                | u1 ~~ u2 :: :: consistent    :: 'C_'              |
+% | BidirectionalTyping       | D ; G |- e dirflag A ::   :: Typing :: 'Typ_'     |
+% |---------------------------+---------------------------------------------------|
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% METAVARIABLES
+
+metavar typevar, X , Y ::= {{ repr-locally-nameless }}
+
+metavar termvar, x , y ::= {{ repr-locally-nameless }}
+
+metavar label, l ::= {{ coq nat }}
+
+metavar int, i ::= {{ coq nat }}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% GRAMMAR (LNgen portion)
+
+grammar
+
+typ, A {{ tex A }}, B {{ tex B }}, C {{ tex C }}, Char {{ tex \mathsf{Char} }}, Bool {{ tex \mathsf{Bool} }}, UKN {{ tex \,?\, }} :: 't_' ::= {{ com types }}
+  | X              ::  :: tvar    {{ com type variable }}
+  | Int            ::  :: int     {{ tex \mathsf{Int}  }} {{ com int }}
+  | Top            ::  :: top     {{ tex \mathsf{Top}  }} {{ com top type }}
+  | Bot            ::  :: bot     {{ tex \mathsf{Bot} }} {{ com bottom type }}
+  | Forall X * A . B
+                   ::  :: forall  (+ bind X in B +)
+                                  {{ com universal type }}
+                                  {{ tex [[Forall]] ([[X]][[*]][[A]]).[[B]] }}
+  | A -> B         ::  :: arrow   {{ com function type }}
+  | A & B          ::  :: and     {{ com intersection }}
+  | { l : A }      ::  :: rcd     {{ com record }}
+  | A [ X ~> B ]   :: M:: tsubst  {{ coq (open_typ_wrt_typ [[X A]][[B]]) }}
+  | ( A )          :: S:: paren   {{ coq [[A]] }}
+
+
+exp, e {{ tex e }}, v {{ tex v }}, u {{ tex u }}, v_f {{ tex v_f }} :: 'e_' ::= {{ com expressions }}
+  | x              ::  :: var     {{ com variable }}
+  | T              ::  :: top     {{ com top }}
+  | i              ::  :: lit     {{ com lit }}
+  | \ x : A . e
+                   ::  :: abs     (+ bind x in e +)
+                                  {{ com abstraction with argument annotation }}
+                                  {{ tex \lambda [[x]][[:]][[A]].\,[[e]] }}
+  | fix x : A . e  ::  :: fixpoint
+                                  (+ bind x in e +)
+                                  {{ com fixpoint }}
+                                  {{ tex [[fix]]~[[x]][[:]][[A]].\,[[e]] }}
+  | e1 e2          ::  :: app     {{ com applications }}
+  | e1 ,, e2       ::  :: merge   {{ com merge }}
+  | e : A          ::  :: anno    {{ com annotation }}
+  | { l = e }      ::  :: rcd     {{ com record }}
+                                  {{ tex \{ [[l]][[=]][[e]] \} }}
+  | e . l          ::  :: proj    {{ com projection }}
+  | \ X . e
+                   ::  :: tabs    (+ bind X in e +)
+                                  {{ com type abstractions }}
+                                  {{ tex \Lambda [[X]].\,[[e]] }}
+  | e A            ::  :: tapp    {{ com type applications }}
+  | e1 [ x ~> e2 ] :: M:: subst   {{ coq (open_exp_wrt_exp [[x e1]][[e2]]) }}
+  | e1 [ X ~> A ]  :: M:: tsubst  {{ coq (open_exp_wrt_typ [[X e1]][[A]]) }}
+  | [ e <-- x ]    :: M:: close   {{ coq (close_exp_wrt_exp [[x]] [[e]]) }}
+  | [ e <-- X ]    :: M:: tclose  {{ coq (close_exp_wrt_typ [[X]] [[e]]) }}
+  | ( e )          :: S:: paren   {{ coq ([[e]]) }}
+  | 1              :: M:: one     {{ tex 1 }} {{ coq (e_lit 1) }}
+  | 2              :: M:: two     {{ tex 2 }} {{ coq (e_lit 2) }}
+  | e1 + e2        :: M:: plus    {{ coq ([[e1]]+[[e2]]) }}
+  | True           :: M:: true    {{ tex \mathsf{True} }} {{ coq [[\x:Int.x:Int->Int]] }}
+  | False          :: M:: false   {{ tex \mathsf{False} }} {{ coq [[\x:Int.1:Int->Int]] }}
+  | a              :: M:: char    {{ tex \text{'a'} }} {{ coq [[\x:Int.\x:Int.x:Int->Int:Int->Int->Int]] }}
+  | | e |          :: M:: erasexp {{ coq (erase_anno [[e]]) }}
+
+
+
+substitutions
+  single exp x   :: subst
+  single typ X   :: typsubst
+
+
+freevars
+  exp x      :: termfv
+  typ X      :: typefv
+
+
+parsing
+  t_arrow <= t_and
+  t_arrow right t_arrow
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% GRAMMAR  (non LNgen portion)
+
+grammar
+
+ctx, G {{ tex \Gamma }} :: 'ctx_' ::=  {{ com term context }} {{ coq list ( atom * typ ) }}
+  | []              ::  :: empty       {{ coq nil }}
+                                       {{ tex \cdot }}
+  | G , x : A       ::  :: cons        {{ coq (cons ([[x]],[[A]]) [[G]]) }}
+  | G1 , G2         :: M:: constwo     {{ coq ([[G2]] ++ [[G1]]) }}
+  | G1 , x : A , G2 :: M:: constwo_mid {{ coq ([[G2]] ++ (cons ([[x]],[[A]]) [[G1]])) }}
+
+
+tctx, D {{ tex \Delta }} :: 'tctx_' ::= {{ com type context }} {{ coq list ( atom * typ ) }}
+  | []             ::  :: empty        {{ coq nil }}
+                                       {{ tex \cdot }}
+  | D , X * A      ::  :: cons         {{ coq (cons ([[X]],[[A]]) [[D]]) }}
+  | ( X * A )      :: M:: one          {{ coq (cons ([[X]],[[A]]) nil) }}
+                                       {{ tex [[X]][[*]][[A]] }}
+  | D1 , D2         :: M:: constwo      {{ coq ([[D2]] ++ [[D1]]) }}
+  | D1 , X * A , D2 :: M:: constwo_mid  {{ coq ([[D2]] ++ (cons ([[X]],[[A]]) [[D1]])) }}
+  | D [ X ~> A ]    :: M:: ctsubst      {{ coq (map (typsubst_typ A X) D) }}
+
+
+dirflag :: '' ::= {{ com checking direction }} {{ tex \Leftrightarrow }}
+  | =>           ::  :: Inf
+  | <=           ::  :: Chk
+
+
+arg :: 'arg_' ::=  {{ com arguments (expression or projection label or type) }}
+  | v            ::  :: exp
+  | { l }        ::  :: la
+  | A            ::  :: typ
+
+
+inla :: 'inla_' ::=  {{ com index or label }}
+  | arrow        ::  :: arrow
+  | forall       ::  :: forall
+  | { l }        ::  :: label
+
+
+terminals :: 'terminals_' ::=
+  | ~>           ::  :: subst      {{ tex \mapsto }}
+  | ->           ::  :: arrow      {{ tex \rightarrow }}
+  | ~->          ::  :: sarrow     {{ tex \rightsquigarrow }}
+  | -->          ::  :: red        {{ tex \hookrightarrow }}
+  | <=           ::  :: check      {{ tex \Leftarrow }}
+  | =>           ::  :: infer      {{ tex \Rightarrow }}
+  | <=>          ::  :: modevar    {{ tex \Leftrightarrow }}
+  | |-           ::  :: turnstile  {{ tex \vdash }}
+  | |=           ::  :: dash2      {{ tex \models }}
+  | T            ::  :: t          {{ tex \top }}
+  | ,,           ::  :: Merge      {{ tex \,,,\, }}
+  | &            ::  :: And        {{ tex \, \& \, }}
+  | :            ::  :: Typ        {{ tex : }}
+  | in           ::  :: in         {{ tex \in }}
+  | ;            ::  :: ctxAnd     {{ tex ; }}
+  | ,            ::  :: break      {{ tex , }}
+  | split        ::  :: split      {{ tex \mathsf{Split} }}
+  | <*>          ::  :: disjointSpec    {{ tex ** }}
+  | *            ::  :: disjoint        {{ tex * }}
+  | *ax          ::  :: disjointAx      {{ tex *_{ax} }}
+  | ~            ::  :: consistencySpec {{ tex \approx }}
+  | ~~           ::  :: consistent {{ tex \approx\approx }}
+  | <            ::  :: val2exprl  {{ tex \langle}}
+  | >            ::  :: val2exprr  {{ tex \rangle}}
+  | topl         ::  :: topl       {{ tex \rceil }}
+  | topr         ::  :: topr       {{ tex \lceil }}
+  | fix          ::  :: fixpoint   {{ tex \mathsf{fix} }}
+  | Forall       ::  :: forall     {{ tex \forall }}
+
+formula :: 'formula_' ::=
+  | judgement                ::   :: judgement
+  | not formula              :: M :: not
+    {{ tex \neg [[formula]] }}
+    {{ coq not ([[formula]]) }}
+  | formula1 or formula2     :: M :: or
+    {{ tex [[formula1]]~\lor~[[formula2]] }}
+    {{ coq ([[formula1]] \/ [[formula2]]) }}
+  | ( formula )              :: M :: brackets
+    {{ tex ([[formula]]\!) }}
+    {{ coq [[formula]] }}
+  | < formula >              :: M :: high_form
+    {{ tex \hlmath{[[formula]]} }}
+    {{ coq [[formula]] }}
+  | uniq G                   ::   :: uniqG
+    {{ coq uniq [[G]] }}
+    {{ tex }}
+  | uniq D                   ::   :: uniqD
+    {{ coq uniq [[D]] }}
+    {{ tex }}
+  | x : A in G               ::   :: inG
+    {{ coq binds [[x]][[A]][[G]] }}
+  | X * A in D               ::   :: inD
+    {{ coq binds [[X]][[A]][[D]] }}
+  | x notin fv e             ::   :: fresh
+    {{ coq [[x]] \notin fv[[e]] }}
+  | x notin dom G            ::   :: notInGx
+    {{ coq ~ AtomSetImpl.In [[x]] (dom [[G]]) }}
+    {{ tex [[x]] \notin [[G]] }}
+  | l1 <> l2                 ::   :: label
+    {{ coq [[l1]] <> [[l2]] }}
+    {{ tex [[l1]] \neq [[l2]] }}
+  | A = B                     ::   :: type
+    {{ coq [[A]] = [[B]] }}
+    {{ tex [[A]] = [[B]] }}
+  | e1 = e2                   ::   :: term
+    {{ coq [[e1]] = [[e2]] }}
+    {{ tex [[e1]] = [[e2]] }}
+  | A <*> B                  :: M :: disjointSpec
+    {{ coq disjointSpec[[A]][[B]] }}
+  | u1 ~ u2                  :: M :: consistencySpec
+    {{ coq consistencySpec[[u1]][[u2]] }}
+    {{ tex [[u1]]\approx_{spec}[[u2]] }}
+  | e1 --> i e2              :: M :: multistep
+    {{ coq (star exp step)[[i]][[e1]][[e2]] }}
+    {{ tex [[e1]]~[[-->]][[i]]~[[e2]] }}
+  | A <: B                   ::   :: subNoCtx
+    {{ tex [[A]] <: [[B]] }}
+  | A * B                    ::   :: disjointNoCtx
+    {{ tex [[A]] [[*]] [[B]] }}
+  | topLike A                ::   :: toplikeNoCtx
+    {{ tex \rceil[[A]]\lceil }}
+  | e1 --> * e2               ::   :: msarrow
+    {{ tex [[e1]]~[[-->]]^*~[[e2]] }}
+  | B |- A <: C               ::   :: appSub
+  | lc_exp e                  ::   :: lcExp
+    {{ coq lc_exp [[e]] }} {{ tex }}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+TypeWellformedness :: '' ::=
+
+defn
+D |- A ::   :: TWell :: 'TW_'
+{{ com Type Well-Formedness }}
+by
+
+------------- :: top
+D |- Top
+
+------------- :: bot
+D |- Bot
+
+------------- :: int
+D |- Int
+
+X*A in D
+------------- :: var
+D |- X
+
+D |- A
+------------- :: rcd
+D |- {l:A}
+
+D |- A
+D |- B
+------------- :: arrow
+D |- A->B
+
+D |- A
+D |- B
+------------- :: and
+D |- A&B
+
+D |- A
+D, X*A |- B
+----------------------- :: all
+D |- Forall X*A. B
+
+
+
+defns
+TermContextWellformedness :: '' ::=
+
+defn
+D |- G ::   :: CWell :: 'CW_'
+{{ com Term Context Well-Formedness }}
+by
+
+------------- :: empty
+D|- []
+
+
+D |- G
+D |- A
+------------- :: cons
+D |- G, x:A
+
+
+
+defns
+TypeContextWellformedness :: '' ::=
+
+defn
+|- D ::   :: TCWell :: 'TCW_'
+{{ com Type Context Well-Formedness }}
+by
+
+------------- :: empty
+|- []
+
+
+|- D
+D |- A
+uniq D, X*A  
+------------- :: cons
+|- D, X*A
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+defns
+BotLikeType :: '' ::=
+
+defn
+botLike A :: :: botLike :: BL_
+{{ com Bot-Like Types }}
+{{ tex \rfloor[[A]]\lfloor }}
+by
+
+---------------- :: bot
+botLike Bot
+
+botLike A
+---------------- :: andl
+botLike A & B
+
+botLike B
+---------------- :: andr
+botLike A & B
+
+
+defns
+TopLikeType :: '' ::=
+
+defn
+D |- topLike A :: :: topLike :: TL_
+{{ com Top-Like Types }}
+{{ tex [[D]] [[|-]] \rceil[[A]]\lceil }}
+by
+
+|- D
+---------------- :: top
+D |- topLike Top
+
+D |- topLike A
+D |- topLike B
+---------------- :: and
+D |- topLike A&B
+
+D |- A
+D |- topLike B
+---------------- :: arrow
+D |- topLike A->B
+
+D |- topLike B
+---------------- :: rcd
+D |- topLike {l:B}
+
+D, X*A |- topLike B
+------------------------ :: all
+D |- topLike Forall X*A. B
+
+|- D
+X * A in D
+botLike A
+------------------------ :: var
+D |- topLike X
+
+
+
+defns
+NotTopLikeType :: '' ::=
+
+defn
+D |- notTopLike A :: :: notTopLike :: ''
+{{ com Not Top-Like Types }}
+{{ tex [[D]] [[|-]] \neg \rceil[[A]]\lceil }}
+by
+
+|- D
+D |- A
+not D |- topLike A
+------------------------ :: NTL
+D |- notTopLike A
+
+
+
+defns
+OrdinaryType :: '' ::=
+
+defn
+ordinary A :: :: ord :: O_
+{{ com Ordinary Types }}
+{{ tex {[[A]]\,}^{\whitecircle} }}
+by
+
+---------------- :: var
+ordinary X
+
+---------------- :: top
+ordinary Top
+
+---------------- :: bot
+ordinary Bot
+
+---------------- :: int
+ordinary Int
+
+ordinary B
+---------------- :: arrow
+ordinary A->B
+
+ordinary B
+-------------------------- :: all
+ordinary Forall X*A . B
+
+ordinary B
+---------------- :: rcd
+ordinary {l:B}
+
+
+
+defns
+SplitType :: '' ::=
+
+defn
+split A B C :: :: spl :: Sp_
+{{ com Splittable Types }}
+{{ tex [[B]] \mathbin{\lhd} [[A]] \mathbin{\rhd} [[C]] }}
+by
+
+
+split B C1 C2
+------------------------- :: arrow
+split A->B A->C1 A->C2
+
+
+split B C1 C2
+------------------------------------------------- :: all
+split Forall X*A.B Forall X*A.C1 Forall X*A.C2
+
+
+split B C1 C2
+--------------------------- :: rcd
+split {l:B} {l:C1} {l:C2}
+
+
+-----------------:: and
+split A&B A B
+
+
+
+defns
+DeclarativeSubtyping :: '' ::=
+
+defn
+D |- A < B  :: :: sub :: DS_
+{{ com Declarative Subtyping }}
+{{ tex [[D]] [[|-]] [[A]] \leq [[B]] }}
+by
+
+|- D
+D |- A
+---------------------- :: refl
+D |- A < A
+
+
+D |- A < B
+D |- B < C
+--------------- :: trans
+D |- A < C
+
+
+|- D
+D |- A
+--------------- :: top
+D |- A < Top
+
+
+|- D
+D |- A
+--------------- :: bot
+D |- Bot < A
+
+D |- A < B
+D |- A < C
+--------------- :: and
+D |- A < B & C
+
+
+|- D
+D |- A & B
+------------------------- :: andl
+D |- A & B < A
+
+
+|- D
+D |- A & B
+----------------- :: andr
+D |- A & B < B
+
+
+D |- A2 < A1
+D |- B1 < B2
+------------------------ :: arr
+D |- A1 -> B1 < A2 -> B2
+
+
+|- D
+D |- A -> B & C
+-------------------------------------- :: distArrow
+D |- (A -> B) & (A -> C) < A -> B & C
+
+
+% |- D
+% D |- Top < A
+% --------------------------- :: topArrow
+% D |- Top < Top -> A
+
+|- D
+--------------------------- :: topArrow
+D |- Top < Top -> Top
+
+
+D |- A < B
+-------------------------------------- :: rcd
+D |- { l : A } < { l : B }
+
+
+|- D
+D |- { l : A & B }
+------------------------------------------- :: distRcd
+D |- { l : A } & { l : B } < { l : A & B }
+
+
+% |- D
+% D |- Top < A
+% ------------------------------- :: topRcd
+% D |- Top < { l : A }
+
+|- D
+------------------------------- :: topRcd
+D |- Top < { l : Top }
+
+
+D |- A2 < A1
+D, X*A2 |- B1 < B2
+----------------------------------------- :: all
+D |- Forall X*A1 . B1 < Forall X*A2. B2
+
+
+|- D
+D |- Forall X*A.(B1&B2)
+---------------------------------------------------------- :: distAll
+D |- (Forall X*A.B1)&(Forall X*A.B2) < Forall X*A.(B1&B2)
+
+
+% |- D
+% D, X*Top |- Top < A
+% -------------------------------------- :: topAll
+% D |- Top < Forall X*Top. A
+
+|- D
+-------------------------------------- :: topAll
+D |- Top < Forall X*Top. Top
+
+
+X * A in D
+D |- A < Bot
+---------------- :: topVar
+D |- Top < X
+
+
+
+defns
+AlgorithmicSubtyping :: '' ::=
+
+defn
+D |- A <: B  :: :: algo_sub :: S_
+{{ com Algorithmic Subtyping }}
+{{ tex [[D]] [[|-]] [[A]] [[<:]] [[B]] }}
+by
+
+
+|- D
+D |- X
+--------------- :: var
+D |- X <: X
+
+
+|- D
+----------------- :: int
+D |- Int <: Int
+
+
+D |- A
+ordinary B
+D |- topLike B
+----------------- :: top
+D |- A <: B
+
+
+|- D
+D |- A
+ordinary A
+----------------- :: bot
+D |- Bot <: A
+
+
+D |- B
+ordinary C
+D |- A <: C
+----------------- :: andl
+D |- A & B <: C
+
+
+D |- A
+ordinary C
+D |- B <: C
+----------------- :: andr
+D |- A & B <: C
+
+
+ordinary B2
+D |- A2 <: A1
+D |- B1 <: B2
+-------------------------- :: arrow
+D |- A1 -> B1 <: A2 -> B2
+
+
+ordinary B2
+D |- B1 <: A1
+D, X*B1 |- A2 <: B2
+----------------------------------------- :: all
+D |- Forall X*A1. A2 <: Forall X*B1. B2
+
+
+ordinary B
+D |- A <: B
+------------------------ :: rcd
+D |- {l:A} <: {l:B}
+
+
+split B B1 B2
+D |- A <: B1
+D |- A <: B2
+--------------- :: and
+D |- A <: B
+
+
+
+defns
+ModularSubtyping :: '' ::=
+
+defn
+D |- A <:: B  :: :: msub :: MS_
+{{ com Modular Subtyping (without ordinary-conditions)}}
+{{ tex [[D]] [[|-]] [[A]] <:_m [[B]] }}
+by
+
+
+|- D
+D |- A
+--------------- :: refl
+D |- A <:: A
+
+
+D |- A
+D |- topLike B
+--------------- :: top
+D |- A <:: B
+
+|- D
+D |- A
+--------------- :: bot
+D |- Bot <:: A
+
+
+D |- B
+D |- A <:: C
+------------------------- :: andl
+D |- A & B <:: C
+
+
+D |- A
+D |- B <:: C
+----------------- :: andr
+D |- A & B <:: C
+
+
+D |- A2 <:: A1
+D |- B1 <:: B2
+--------------------------- :: arrow
+D |- A1 -> B1 <:: A2 -> B2
+
+
+D |- A <:: B
+------------------------ :: rcd
+D |- {l:A} <:: {l:B}
+
+
+split B B1 B2
+D |- A <:: B1
+D |- A <:: B2
+--------------- :: and
+D |- A <:: B
+
+
+D |- B1 <:: A1
+D, X*B1 |- A2 <:: B2
+----------------------------------------- :: all
+D |- Forall X*A1. A2 <:: Forall X*B1. B2
+
+
+
+defns
+DisjointnessAxiom :: '' ::=
+
+defn A *ax B :: :: disjoint_axiom    :: 'Dax_'
+{{ com Disjointness Axioms }}
+by
+
+---------------------- :: intArrow
+Int *ax A1 -> A2
+
+---------------------- :: intRcd
+Int *ax { l : A }
+
+----------------------- :: intAll
+Int *ax Forall X*A . B
+
+---------------------- :: arrowRcd
+A1 -> A2 *ax { l : A }
+
+--------------------------- :: arrowAll
+A1 -> A2 *ax Forall X*A . B
+
+--------------------------- :: rcdAll
+{ l : C } *ax Forall X*A . B
+
+---------------------- :: arrowInt
+A1 -> A2 *ax Int
+
+---------------------- :: rcdInt
+{ l : A } *ax Int
+
+----------------------- :: allInt
+Forall X*A . B *ax Int
+
+---------------------- :: rcdArrow
+{ l : A } *ax A1->A2
+
+---------------------------- :: allArrow
+Forall X*A . B *ax A1->A2
+
+---------------------------- :: allRcd
+Forall X*A . B *ax { l : C }
+
+l1 <> l2
+------------------------------ :: rcdNeq
+{ l1 : A } *ax { l2 : B }
+
+
+
+defns
+TypeDisjointness :: '' ::=
+
+defn D |- A * B :: :: disjoint    :: 'D_'
+{{ com Type Disjointness }}
+by
+
+
+|- D
+D |- A
+D |- B
+A *ax B
+------------------ :: ax
+D |- A * B
+
+
+D |- B
+D |- topLike A
+---------------------- :: topl
+D |- A * B
+
+
+D |- A
+D |- topLike B
+---------------------- :: topr
+D |- A * B
+
+
+D |- A1 -> A2
+D |- B1 -> B2
+D |- A2 * B2
+--------------------------- :: arrow
+D |- A1 -> A2 * B1 -> B2
+
+
+D |- A * B
+---------------------------- :: rcdEq
+D |- { l : A } * { l : B }
+
+
+D |- A1
+D |- A2
+D, X*A1&A2 |- B1 * B2
+-------------------------------------- :: all
+D |- Forall X*A1.B1 * Forall X*A2.B2
+
+
+X * A in D
+D |- A <: B
+-------------------------- :: varl
+D |- X * B
+
+
+X * A in D
+D |- A <: B
+-------------------------- :: varr
+D |- B * X
+
+
+split A A1 A2
+D |- A1 * B
+D |- A2 * B
+------------------ :: andl
+D |- A * B
+
+
+split B B1 B2
+D |- A * B1
+D |- A * B2
+--------------- :: andr
+D |- A * B
+
+
+
+defns
+IsomorphicSubtyping :: '' ::=
+
+defn
+A <<: B  :: :: subsub :: IS_
+{{ com Isomorphic Subtyping }}
+{{ tex [[A]] \ll [[B]] }}
+by
+
+
+--------------- :: refl
+A <<: A
+
+
+
+split B B1 B2
+A1 <<: B1
+A2 <<: B2
+--------------- :: and
+A1&A2 <<: B
+
+
+defns
+DuplicatedType :: '' ::=
+
+defn
+A <~< B  :: :: DuplicatedType :: DT_
+{{ com Some parts of B are duplicated in A. (Argument Type in Isomorphic Subtype after Applicative Distributivity) }}
+{{ tex [[A]] \lll [[B]] }}
+by
+
+--------------- :: refl
+A <~< A
+
+
+A <~< C
+B <~< C
+--------------- :: copy
+A&B <~< C
+
+
+A' <~< A
+B' <~< B
+--------------- :: and
+A'&B' <~< A&B
+
+
+
+% defns
+% MergeTwoApplicativeTypes :: '' ::=
+
+% defn
+% merge A B C :: :: Merge :: M_
+% {{ com Merging Types }}
+% {{ tex [[A]] \rhd [[C]] \lhd [[B]] }}
+% by
+
+
+% ----------------------------------- :: arrow
+% merge A1->A2 B1->B2 A1&B1->A2&B2
+
+
+% ----------------------------------- :: rcd
+% merge {l:A} {l:B} {l:A&B}
+
+
+% ---------------------------------------------------------- :: all
+% merge Forall X*A1.A2 Forall X*B1.B2 Forall X*A1&B1.(A2&B2)
+
+
+
+defns
+ApplicativeDistribution :: '' ::=
+
+defn
+ A > B  :: :: appDist :: AD_
+{{ com Applicative Distribution }}
+{{ tex [[A]] \rhd [[B]] }}
+by
+
+A1 > B1->C1
+A2 > B2->C2
+-------------------------------------------- :: andArrow
+A1&A2 > B1 & B2 -> C1 & C2
+
+
+A1 > {l:B1}
+A2 > {l:B2}
+-------------------------------------------- :: andRcd
+A1&A2 > {l:B1&B2}
+
+
+A1 > Forall X*B1.C1
+A2 > Forall X*B2.C2
+-------------------------------------------- :: andAll
+A1&A2 > Forall X*B1&B2.(C1 & C2)
+
+
+------------------- :: refl
+A > A
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+Values :: '' ::=
+
+defn
+value e ::  :: value :: V_
+{{ com Values }} {{ tex }}
+by
+
+
+---------------------- :: unit
+value T
+
+
+---------------------- :: lit
+value i
+
+
+--------------------------------- :: abs
+value (\x : A . e) : B
+
+
+--------------------------------- :: bareAbs
+value (\x : A . e)
+
+
+--------------------------------- :: tabs
+value (\X . e) : B
+
+
+--------------------------------- :: bareTabs
+value (\X . e)
+
+
+----------------------- :: rcd
+value {l=e} : B
+
+
+----------------------- :: bareRcd
+value {l=e}
+
+
+value v1
+value v2
+----------------------- :: merge
+value v1 ,, v2
+
+defns
+Casting :: '' ::=
+
+defn
+v --> A  v'  :: :: casting :: Cast_
+{{ tex [[v]]\,[[-->]]_{[[A]]}\,[[v']] }}
+{{ com Casting }}
+by
+
+
+---------------------- :: int
+i  --> Int  i
+
+
+lc_exp v
+--------------------- :: top
+v -->Top T
+
+
+lc_exp v
+ordinary A1 -> A2
+[] |- topLike A1 -> A2
+----------------------------- :: topArrow
+v -->A1->A2 (\x:Top.T):A1->A2
+
+
+lc_exp v
+ordinary Forall X*A1.A2
+[] |- topLike Forall X*A1.A2
+--------------------------------------------- :: topAll
+v -->Forall X*A1.A2 (\X.T):Forall X*A1.A2
+
+
+lc_exp v
+ordinary {l:A}
+[] |- topLike {l:A}
+----------------------------- :: topRcd
+v -->{l:A} {l=T}:{l:A}
+
+
+ordinary B
+[] |- notTopLike B
+[] |- A <: B
+-------------------------- :: anno
+e:A -->B e:B
+
+
+ordinary A
+v1 -->A  v1'
+--------------------------------- :: mergel
+v1,,v2 -->A  v1'
+
+
+ordinary A
+v2 -->A  v2'
+--------------------------------- :: merger
+v1,,v2 -->A  v2'
+
+
+split A B C
+v -->B v1
+v -->C v2
+--------------------------------------- :: and
+v -->A v1,,v2
+
+
+defns
+ExpressionWrapping :: '' ::=
+
+defn
+e |-> A  u  :: :: wrapping :: EW_
+{{ tex [[e]]\,\rightsquigarrow_{[[A]]}\,[[u]] }}
+{{ com Expression Wrapping }}
+by
+
+--------------------- :: top
+e |->Top T
+
+
+ordinary A1->A2
+[] |- topLike A1->A2
+----------------------------- :: topArrow
+e |->A1->A2 (\x:Top.T):A1->A2
+
+
+ordinary Forall X*A1.A2
+[] |- topLike Forall X*A1.A2
+--------------------------------------------- :: topAll
+e |->Forall X*A1.A2 (\X.T):Forall X*A1.A2
+
+
+ordinary {l:A}
+[] |- topLike {l:A}
+----------------------------- :: topRcd
+e |->{l:A} {l=T}:{l:A}
+
+
+ordinary A
+[] |- notTopLike A
+-------------------------- :: anno
+e |->A e:A
+
+
+split A B C
+e |->B e1
+e |->C e2
+--------------------------------------- :: and
+e |->A e1,,e2
+
+
+defns
+ParallelApplication :: '' ::=
+
+defn
+v ; arg --> u :: :: papp :: PApp_
+{{ tex [[v]] \bullet [[arg]]~[[-->]]~[[u]] }}
+{{ com Parallel Application }}
+by
+
+
+B > C1 -> C2
+e2 |->A e2'
+--------------------------------------------------- :: abs
+(\x:A.e1) :B ; e2 --> ( e1 [ x ~> e2' ] ) : C2
+
+
+A > Forall X*B1.B2
+--------------------------------------------------- :: tabs
+(\X.e) :A ; C --> (e[X~>C]) : (B2[X~>C])
+
+
+A > { l : B }
+---------------------------------------- :: proj
+{l=e}:A ; {l} --> e:B
+
+
+v1 ; arg --> e1
+v2 ; arg --> e2
+------------------------------- :: merge
+v1,,v2 ; arg --> e1,,e2
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+defns
+PreValues :: '' ::=
+
+defn
+pval u ::  :: prevalue :: PV_
+{{ com Values + Annotated Expressions }} {{ tex }}
+by
+
+
+---------------------- :: int
+pval i
+
+
+---------------------- :: top
+pval T
+
+
+---------------------- :: anno
+pval e:A
+
+
+pval u1
+pval u2
+---------------------- :: merge
+pval u1,,u2
+
+
+
+defns
+PrincipalType :: '' ::=
+
+defn
+pType u A ::  :: pType :: PT_
+{{ com Principal Type of Pre-Values }}
+{{ tex [[u]] : [[A]] }}
+by
+
+
+---------------------- :: top
+pType T Top
+
+
+---------------------- :: int
+pType i Int
+
+
+---------------------- :: anno
+pType (e:A) A
+
+
+pType u1 A
+pType u2 B
+---------------------- :: merge
+pType (u1,,u2) (A&B)
+
+
+
+defns
+Consistent :: '' ::=
+
+defn
+u1 ~~ u2 :: :: consistent    :: 'C_'
+{{ com Consistency }}
+by
+
+
+-------------------------- :: lit
+i ~~ i
+
+
+-------------------------- :: anno
+e:A ~~ e:B
+
+
+pType u1 A
+pType u2 B
+[] |- A * B
+pval u1
+pval u2
+-------------------------- :: disjoint
+u1 ~~ u2
+
+
+u1 ~~ u
+u2 ~~ u
+------------------------- :: mergel
+u1,,u2 ~~ u
+
+
+u ~~ u1
+u ~~ u2
+------------------------- :: merger
+u ~~ u1,,u2
+
+
+
+defns
+BidirectionalTyping :: '' ::=
+
+defn
+D ; G |- e dirflag A ::   :: Typing :: 'Typ_'
+{{ com Bidirectional Typing }}
+by
+
+
+|- D
+D |- G
+uniq G
+----------------- :: top
+D; G |- T => Top
+
+
+|- D
+D |- G
+uniq G
+----------------- :: lit
+D; G |- i => Int
+
+
+|- D
+D |- G
+x : A in G
+uniq G
+-------------------------- :: var
+D; G |- x => A
+
+
+< D |- B1 <: A >
+D; G , x : A |- e <= B2
+--------------------------------- :: abs
+D; G |- \x : A . e <= B1->B2
+
+
+D; G |- e1 => A
+< A > B -> C >
+D; G |- e2 <= B
+----------------------- :: app
+D; G |- e1 e2 => C
+
+
+D |- G
+D, X*A ; G |- e <= B
+-------------------------------- :: tabs
+D; G |- \X.e <= Forall X*A.B
+
+
+D; G |- e => B
+< B > Forall X*C1 . C2 >
+< D |- A * C1 >
+------------------------------- :: tapp
+D; G |- e A => C2 [X~>A]
+
+
+D; G |- e => A
+< A > {l : C} >
+----------------------- :: proj
+D; G |- e.l => C
+
+
+D; G |- e <= A
+----------------------- :: rcd
+D; G |- {l=e} <= {l:A}
+
+
+D; G |- e1 => A
+D; G |- e2 => B
+< D |- A * B >
+------------------------------------- :: merge
+D; G |- e1 ,, e2 => A&B
+
+
+D; G |- e <= A
+D; G |- e <= B
+------------------------:: inter
+D; G |- e <= A & B
+
+
+D; G |- e <= A
+--------------------- :: anno
+D; G |- (e:A) => A
+
+
+D; G , x : A |- e <= A
+------------------------------------------- :: fix
+D; G |- fix x : A . e => A
+
+
+|- D
+D |- G
+uniq G
+[]; [] |- u1 => A
+[]; [] |- u2 => B
+< u1 ~~ u2 >
+----------------------------------------- :: mergev
+D; G |- u1 ,, u2 => A&B
+
+
+D; G |- e => A
+< D |- A <: B >
+--------------------- :: sub
+D; G |- e <= B
+
